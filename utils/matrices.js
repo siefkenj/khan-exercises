@@ -1,15 +1,4 @@
 "use strict";
-//simulate the actual excersizes environment
-var KhanUtil = {};
-
-jQuery.extend(KhanUtil, {
-	randRange : function(low, high){
-		return Math.floor(Math.random()*(high-low)+low);
-	}
-});
-
-
-//start the real code
 
 /* some helpful functional programming tools */
 // jQuery's map function has some annoying behavior.
@@ -55,7 +44,7 @@ var deepCopyArray = function (a){
 };
 
 jQuery.extend(KhanUtil, {
-	Matrix : function( m ) {
+	Matrix: function( m ) {
 		/* numbers smaller than ZERO_TOLERANCE in magnitude are treated as zero */
 		this.ZERO_TOLERANCE = 0.0000001;
 		/* hack so we can return new instance of Matrix from within ourself */
@@ -92,7 +81,14 @@ jQuery.extend(KhanUtil, {
 				row_texts.push(this.array[row].join(" & "));
 			}
 			return "\\begin{bmatrix}"+row_texts.join("\\\\")+"\\end{bmatrix}";
-		}
+		};
+		/* return a new matrix with func applied to every element */
+		this.map = function (func) {
+			var new_array = map(this.array, function(x){
+				return map(x, func);
+			});
+			return new Matrix(new_array);
+		};
 		/* returns the i,j element.  If i=':' or j=':',
 		 * it returns the whole row or column
 		 */
@@ -303,9 +299,22 @@ jQuery.extend(KhanUtil, {
 			//reduce the matrix to upper triangular while keeping track of row swaps
 			var reduced = this._reduce_to_stage('ref');
 			var diag = reduced['matrix'].diag();
-			return Math.pow(-1, reduced['row_swaps'])*prod(diag);
+			var det = Math.pow(-1, reduced['row_swaps'])*prod(diag);
+			
+			//if the matrix was an integer matrix, make sure
+			//we return an integer
+			var is_int = function(x){ return Math.round(x) == x; };
+			//if any number isn't an int, this product will be zero
+			var all_ints = prod(map(this.array, function(x){
+				return prod(map(x, is_int));
+			}));
+			if (all_ints) {
+				return Math.round(det);
+			}
+			return det;
 		}
 	},
+
 	/* matrix object that keeps all entries as strings
 	 * and applies operations symbolically.  e.g.,
 	 * [[1]]+[[2]] = [['1+2']] */
@@ -335,6 +344,27 @@ jQuery.extend(KhanUtil, {
 			}
 			return "["+row_texts.join(", ")+"]";
 		};
+		/* return a new matrix with func applied to every element */
+		this.map = function (func) {
+			var new_array = map(this.array, function(x){
+				return map(x, func);
+			});
+			return new SymbolicMatrix(new_array);
+		};
+		/* returns the i,j element.  If i=':' or j=':',
+		 * it returns the whole row or column
+		 */
+		this.get = function(i,j){
+			if(i == ':' && j == ':'){ return new SymbolicMatrix(this.array); }
+			if(j == ':'){
+				//return a copy of the row
+				return this.array[i].slice();
+			}
+			if(i == ':'){
+				return map(this.array, function(row){ return row[j]; });
+			}
+			return this.array[i][j]
+		}
 		/* adds a scalar or another number to this */
 		this.add = function(other){
 			if(isMatrixType(other)){
@@ -398,6 +428,24 @@ jQuery.extend(KhanUtil, {
 		
 		return new SymbolicMatrix(new_array);
 	},
+	
+	/* color a matrix's entries a specific color one by one.
+	 * i.e., mat[0][0] is colored color_list[0],
+	 * mat[0][1] is colored color_list[1], etc.
+	 */
+	colorizeMatrixAs : function(mat, color_list){
+		var SymbolicMatrix = KhanUtil.SymbolicMatrix;
+
+		var new_array = deepCopyArray(mat.array);
+		var num_rows = mat.dims[0], num_cols = mat.dims[1];
+		for(var i = 0; i < color_list.length && i < num_rows*num_cols; i++){
+			var col = i % num_cols;
+			var row = (i - col) / num_cols;
+			new_array[row][col] = '\\color{'+color_list[i]+'}{'+new_array[row][col]+'}';
+		}
+		
+		return new SymbolicMatrix(new_array);
+	},
 
 	/* matrix to latex conversion. 
 	 * braces is in ['[', '(', '|', ''].  Defaults to '['
@@ -415,9 +463,9 @@ jQuery.extend(KhanUtil, {
 	},
 
 	/* returns a rows x cols matrix with random values between range_low and range_hight */
-	randRangeMatrix : function(rows, cols, range_low, range_high){
+	randRangeMatrix : function (rows, cols, range_low, range_high) {
 		var new_array = [];
-		for(var i = 0; i < cols; i++){
+		for(var i = 0; i < rows; i++){
 			var new_row = [];
 			for(var j = 0; j < cols; j++){
 				new_row.push(KhanUtil.randRange(range_low, range_high));
@@ -425,35 +473,27 @@ jQuery.extend(KhanUtil, {
 			new_array.push(new_row);
 		}
 		return new KhanUtil.Matrix(new_array);
+
+	},
+
+	// shouldn't be here, but atm, doesn't seem to exist anywhere else 
+	/* returns the contents of expr removing any \color{...}{ } tag */
+	stripColorMarkup : function (expr) {
+		var text = expr;
+		var match = expr.toString().match(/\\color{\w+?}{(.*)}/);
+		if (match) {
+			text = match[1];
+		}
+		return text;
+	},
+
+	/* if you pass in a negative number, it will be returned with parentheses */
+	negParens : function (expr) {
+		var num = KhanUtil.stripColorMarkup(expr);
+		if (num.toString().charAt(0) == '-') {
+			return '('+expr+')';
+		}
+		return expr;
 	}
+
 });
-
-
-
-/* sloppy test cases.  just output stuff to the document for now */
-//pretend like we're using the excersizes environment
-jQuery.extend(this, KhanUtil);
-
-var mm = new Matrix([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 10]]);
-document.write([mm, mm.transpose(), mm.det(), mm.ref()]);
-document.write('<br/>');
-var mm2 = new Matrix([[4,0,6],[7,8,8], [0, 0, 3]]);
-document.write([mm2._reduce_to_stage('rref')['matrix'] + 'xxx', mm2.det(), mm2].join(' '));
-document.write('<br/>');
-document.write(mm2.mul(mm2));
-document.write('<br/>');
-document.write([mm2, mm2.mul(mm2)]);
-document.write('<br/>');
-document.write('<br/>');
-var mm3 = new SymbolicMatrix([[1,2],[3,4]]);
-document.write([mm3, mm3.add(3), mm3.add(mm3)]);
-document.write('<br/>');
-document.write([colorizeMatrix(mm3, 'blue',':',1)]);
-document.write('<br/>');
-document.write(formatMatrix(mm3));
-document.write('<br/>');
-document.write('<br/>');
-var mm3 = randRangeMatrix(3, 2, 1, 5);
-document.write(mm3.toCode());
-
-//}
