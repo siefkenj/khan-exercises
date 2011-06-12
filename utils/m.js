@@ -1,49 +1,62 @@
-var Matrix = function( m ) {
+"use strict";
+//simulate the actual excersizes environment
+var KhanUtil = {};
+
+
+
+//start the real code
+
+/* some helpful functional programming tools */
+// jQuery's map function has some annoying behavior.
+// i.e., if you return an array, it extends the result instead
+// of pushing the new array onto the result.  Not good when
+// you have to traverse a bunch of 2d arrays! 
+var map = function (a, f) {
+	var ret = [];
+	for (var i = 0; i < a.length; i++) {
+		ret.push( f(a[i]) );
+	}
+	return ret;
+};
+var zip = function (a,b) {
+	var ret = [];
+	var l = Math.min(a.length, b.length);
+	for (var i = 0; i < l; i++) {
+		ret.push([ a[i], b[i] ]);
+	}
+	return ret;
+};
+var sum = function (a) {
+	var ret = 0;
+	for (var i = 0; i < a.length; i++) {
+		ret += a[i];
+	}
+	return ret;
+};
+var prod = function (a) {
+	var ret = 1;
+	for (var i = 0; i < a.length; i++) {
+		ret *= a[i];
+	}
+	return ret;
+};
+
+/* copy an array two levels deep */
+var deepCopyArray = function (a){
+	//slice returns a copy of the array
+	return map(a, function(x){ 
+		return x.slice(); 
+	});
+};
+
+jQuery.extend(KhanUtil, {
+	Matrix : function( m ) {
 		/* numbers smaller than ZERO_TOLERANCE in magnitude are treated as zero */
 		this.ZERO_TOLERANCE = 0.0000001;
 		/* hack so we can return new instance of Matrix from within ourself */
 		var Matrix = this.constructor;
 
-		/* some helpful functional programming tools */
-		/* jQuery's map function has some annoying behavior.
-		 * i.e., if you return an array, it extends the result instead
-		 * of pushing the new array onto the result.  Not good when
-		 * you have to traverse a bunch of 2d arrays! */
-		var map = function(a, f){ 	
-			var ret = [];
-			for(var i = 0; i < a.length; i++){
-				ret.push(f(a[i]));
-			}
-			return ret;
-		};
-		var zip = function(a,b){
-			var ret = [];
-			var l = Math.min(a.length, b.length);
-			for(var i = 0; i < l; i++){
-				ret.push([a[i],b[i]]);
-			}
-			return ret;
-		};
-		var sum = function(a){
-			var ret = 0;
-			for(var i = 0; i < a.length; i++){
-				ret += a[i];
-			}
-			return ret;
-		};
-		var prod = function(a){
-			var ret = 1;
-			for(var i = 0; i < a.length; i++){
-				ret *= a[i];
-			}
-			return ret;
-		};
 
-		/* copy an array two levels deep */
-		var deepCopyArray = function (a){
-			//slice returns a copy of the array
-			return map(a, function(x){ return x.slice(); });
-		};
 		/* dot product of two arrays */
 		var arrayDotProd = function (a,b){
 			if(a.length != b.length){ throw "Size of dot products do not match!"; }
@@ -287,12 +300,12 @@ var Matrix = function( m ) {
 			var diag = reduced['matrix'].diag();
 			return Math.pow(-1, reduced['row_swaps'])*prod(diag);
 		}
-}
-/* matrix object that keeps all entries as strings
- * and applies operations symbolically.  e.g.,
- * [[1]]+[[2]] = [['1+2']] */
-var SymbolicMatrix = function(m){
-		var SymbolicMatrix = this.constructor;
+	},
+	/* matrix object that keeps all entries as strings
+	 * and applies operations symbolically.  e.g.,
+	 * [[1]]+[[2]] = [['1+2']] */
+	SymbolicMatrix : function(m){
+		var SymbolicMatrix = this.constructor, Matrix = KhanUtil.Matrix;
 		var isMatrixType = function(x){
 			return x instanceof Matrix || x instanceof SymbolicMatrix;
 		}
@@ -301,22 +314,7 @@ var SymbolicMatrix = function(m){
 		if(isMatrixType(m)){
 			this.array = m.array;
 		}
-		/* define some functional tools */
-		var map = function(a, f){ 	
-			var ret = [];
-			for(var i = 0; i < a.length; i++){
-				ret.push(f(a[i]));
-			}
-			return ret;
-		};
-		var zip = function(a,b){
-			var ret = [];
-			var l = Math.min(a.length, b.length);
-			for(var i = 0; i < l; i++){
-				ret.push([a[i],b[i]]);
-			}
-			return ret;
-		};
+		/* overwrite some functional tools with symbolic versions */
 		var sum = function(a){
 			return a.join('+');
 		};
@@ -324,11 +322,6 @@ var SymbolicMatrix = function(m){
 			return a.join('*');
 		};
 		
-		/* copy an array two levels deep */
-		var deepCopyArray = function (a){
-			//slice returns a copy of the array
-			return map(a, function(x){ return x.slice(); });
-		};
 		/* returns the matrix in array notation */
 		this.toString = function(){ 
 			var row_texts = [];
@@ -363,31 +356,18 @@ var SymbolicMatrix = function(m){
 			}
 			return new Matrix(new_array);
 		};
-};
+	},
 
-/* Returns a SymbolicMatrix version of mat with latex color
- * formatting applied.  row,col use slicing notation.
- * i.e., row=':' will color that entire row and col=':'
- * will color the entire column.  if row,col=':',':'
- * the whole matrix will be colored */
-var colorizeMatrix = function(mat, color, row, col){
+	/* Returns a SymbolicMatrix version of mat with latex color
+	 * formatting applied.  row,col use slicing notation.
+	 * i.e., row=':' will color that entire row and col=':'
+	 * will color the entire column.  if row,col=':',':'
+	 * the whole matrix will be colored */
+	colorizeMatrix : function(mat, color, row, col){
+		var SymbolicMatrix = KhanUtil.SymbolicMatrix;
 		/* set row, col to the defualt values if they're undefined */
 		if(typeof row === 'undefined'){ row = ':'; }
 		if(typeof col === 'undefined'){ col = ':'; }
-
-		/* copy an array two levels deep */
-		var deepCopyArray = function (a){
-			//slice returns a copy of the array
-			return map(a, function(x){ return x.slice(); });
-		};
-		/* define some functional tools */
-		var map = function(a, f){ 	
-			var ret = [];
-			for(var i = 0; i < a.length; i++){
-				ret.push(f(a[i]));
-			}
-			return ret;
-		};
 
 		/* wraps whatever value we pass in in a color tag */
 		var apply_color = function(x){
@@ -412,32 +392,29 @@ var colorizeMatrix = function(mat, color, row, col){
 		}
 		
 		return new SymbolicMatrix(new_array);
-};
+	},
 
-/* matrix to latex conversion. 
- * braces is in ['[', '(', '|'].  Defaults to '['
- */
-var formatMatrix = function(mat, braces){
-		this.array = mat.array;
+	/* matrix to latex conversion. 
+	 * braces is in ['[', '(', '|'].  Defaults to '['
+	 */
+	formatMatrix : function(mat, braces){
+		var array = mat.array;
 		var latex_brace = 'bmatrix';
 		if(braces == '('){ latex_brace = 'pmatrix'; }
 		if(braces == '|'){ latex_brace = 'vmatrix'; }
-		
-		/* define some functional tools */
-		var map = function(a, f){ 	
-			var ret = [];
-			for(var i = 0; i < a.length; i++){
-				ret.push(f(a[i]));
-			}
-			return ret;
-		};
 
-		var transformed_rows = map(this.array, function(x){ return x.join(' & '); });
+		var transformed_rows = map(array, function(x){ return x.join(' & '); });
 		return '\\begin{'+latex_brace+'}'+transformed_rows.join('\\\\')+'\\end{'+latex_brace+'}'
 
-};
+	}
+});
 
-/* test cases */
+
+
+/* sloppy test cases.  just output stuff to the document for now */
+//pretend like we're using the excersizes environment
+jQuery.extend(this, KhanUtil);
+
 var mm = new Matrix([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 10]]);
 document.write([mm, mm.transpose(), mm.det(), mm.ref()]);
 document.write('<br/>');
@@ -455,3 +432,5 @@ document.write('<br/>');
 document.write([colorizeMatrix(mm3, 'blue',':',1)]);
 document.write('<br/>');
 document.write(formatMatrix(mm3));
+
+//}
