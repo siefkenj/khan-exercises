@@ -20,10 +20,13 @@ jQuery.extend(KhanUtil, {
 <script type="text/javascript">
 "use strict";
 
-var mm = new Matrix([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 10]]);
-document.write([mm, mm.transpose(), mm.det(), mm.ref()]);
+var mm = new Matrix([[0, 1, 0],[1, 2, 3],  [1, 10, 11]]);
+var mmt = mm.transpose();
+document.write([mm, mmt]);
+document.write([mm, mm.transpose(), mm.det(), mm.rref()]);
 document.write('<br/>');
-var mm2 = new Matrix([[4,0,6],[7,8,8], [0, 0, 3]]);
+document.write([mm.add(mm), mm.mul(4)])
+ var mm2 = new Matrix([[4,0,6],[7,8,8], [0, 0, 3]]);
 document.write([mm2._reduce_to_stage('rref')['matrix'] + 'xxx', mm2.det(), mm2].join(' '));
 document.write('<br/>');
 document.write(mm2.mul(mm2));
@@ -39,8 +42,8 @@ document.write('<br/>');
 document.write(formatMatrix(mm3));
 document.write('<br/>');
 document.write('<br/>');
-var mm3 = randRangeMatrix(3, 2, 1, 5);
-document.write(mm3.toCode());
+var mm3 = randRangeMatrix(2, 2, 1, 5);
+document.write([mm3.toCode('|'), mm3.det()]);
 
 
 
