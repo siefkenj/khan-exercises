@@ -502,6 +502,47 @@ jQuery.extend(KhanUtil, {
 		return new KhanUtil.Matrix(new_array);
 
 	},
+	
+	//returns a matrix of all zeros
+	//type can be Matrix or SymbolicMatrix
+	//defaults to Matrix
+	zeroMatrix : function (rows, cols, type) {
+		var Mat = KhanUtil.Matrix;
+		if (type && type.constructor) {
+			Mat = type.constructor;
+		}
+
+		//create a matrix of zeros
+		var new_array = [];
+		for(var i = 0; i < rows; i++){
+			var new_row = [];
+			for(var j = 0; j < cols; j++){
+				new_row.push(0);
+			}
+			new_array.push(new_row);
+		}
+		return new Mat(new_array);
+	},
+	
+	/* returns a sparse matrix with num_entries number of random non-zero terms */
+	randSparseMatrix : function (rows, cols, num_entries, range_low, range_high) {
+		var low = range_low, high = range_high;
+		if (!range_low || !range_high) {
+			low = -4;
+			high = 4;
+		}
+		var mat = KhanUtil.zeroMatrix(rows, cols);
+
+		//populate the matrix with random entries
+		//TODO this method won't ensure num_entries number of entries 'cause there could be a collision.  Do a better way.
+		//whatever fix there is, make sure it won't hang if num_entries > rows*cols
+		for (var i = 0; i < num_entries; i++) {
+			var pos = [KhanUtil.randRange(0,rows-1), KhanUtil.randRange(0,cols-1)];
+			mat.array[pos[0]][pos[1]] = KhanUtil.randRange(low, high);
+		}
+		return mat;
+
+	},
 
 	//returns a list of {cofactor: A, coeff: x, sign: s}
 	//where A is the cofactor matrix, x is the entry
