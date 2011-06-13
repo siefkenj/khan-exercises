@@ -36,12 +36,24 @@ var prod = function (a) {
 };
 
 
-/* copy an array two levels deep */
+/* a few useful array utilities */
+//copy an array two levels deep
 var deepCopyArray = function (a){
 	//slice returns a copy of the array
 	return map(a, function(x){ 
 		return x.slice(); 
 	});
+};
+//return a transposed version of a 2d array
+var arrayTranspose = function (array) {
+	var new_array = [];
+	//loop through the columns of this.array
+	for(var i = 0; i < array[0].length; i++){
+		var return_ith_componant = function(x){ return x[i]; };
+		//append the array consisting of the ith column of this.array
+		new_array.push(map(array, return_ith_componant));
+	}
+	return new_array;
 };
 
 
@@ -189,14 +201,7 @@ jQuery.extend(AbstractMatrx.prototype, {
 
 		//return a transposed version of ourselves
 		transpose : function(){
-			var new_array = [];
-			//loop through the columns of this.array
-			for(var i = 0; i < this.dims[1]; i++){
-				var return_ith_componant = function(x){ return x[i]; };
-				//append the array consisting of the ith column of this.array
-				new_array.push(map(this.array, return_ith_componant));
-			}
-			return new this.constructor(new_array);
+			return new this.constructor(arrayTranspose(this.array));
 		}
 
 		// elementary row operations 
@@ -424,6 +429,17 @@ jQuery.extend(KhanUtil, {
 		return new SymbolicMatrix(new_array);
 	},
 	
+	//return a matrix where each entry in _entries_ is colored _color_
+	//entries should be a list of elements of the form [row,col]
+	colorizeMatrixEntries : function (mat, color, entries) {
+		var ret = mat;
+		//do this in a super lazy way, by just repeatedly calling colorizeMatrix
+		for (var i = 0; i < entries.length; i++) {
+			ret = KhanUtil.colorizeMatrix(ret, color, entries[i][0], entries[i][1]);
+		}
+		return ret;
+	},
+
 	/* color a matrix's entries a specific color one by one.
 	 * i.e., mat[0][0] is colored color_list[0],
 	 * mat[0][1] is colored color_list[1], etc.
@@ -440,6 +456,22 @@ jQuery.extend(KhanUtil, {
 		}
 		
 		return new SymbolicMatrix(new_array);
+	},
+
+	//returns a matrix where the cofactor specified
+	//by pos=[row,col] is colored _color_
+	colorizeCofactor : function (mat, pos, color) {
+		//create a 2d array of coordinates
+		var coord_array = [];
+		for (var i = 0; i < mat.dims[0]; i++) {
+			for (var j = 0; j < mat.dims[1]; j++) {
+				if (i != pos[0] && j != pos[1]) {
+					coord_array.push([i,j]);
+				}
+			}
+		}
+		coord_array.push(pos);
+		return KhanUtil.colorizeMatrixEntries(mat, color, coord_array);
 	},
 
 	/* matrix to latex conversion. 
@@ -469,6 +501,48 @@ jQuery.extend(KhanUtil, {
 		}
 		return new KhanUtil.Matrix(new_array);
 
+	},
+
+	//returns a list of {cofactor: A, coeff: x, sign: s}
+	//where A is the cofactor matrix, x is the entry
+	//used to make the cofactor, and s is the sign of that
+	//position in the matrix
+	getCofactors : function(mat){
+		//by default, expand along the first row, so pop them off
+		var xs = mat.array[0];
+		var ret = [];
+		for (var i = 0; i < xs.length; i++) {
+			ret.push( KhanUtil.getCofactor(mat, [0,i]) );
+		}
+		return ret;
+	},
+	
+	//returns {cofactor: A, coeff: x, sign: s}
+	//where A is the cofactor matrix, x is the entry
+	//used to make the cofactor, and s is the sign of that
+	//position in the matrix
+	getCofactor : function(mat, pos){
+		//create a 2d array of coordinates
+		var cofac_matrix = [];
+		for (var i = 0; i < mat.dims[0]; i++) {
+			var cofac_row = [];
+			for (var j = 0; j < mat.dims[1]; j++) {
+				//exclude the column we don't want
+				if (j != pos[1]) {
+					cofac_row.push(mat.array[i][j]);
+				}
+			}
+			//exclude the row we don't want
+			if (i != pos[0]) {
+				cofac_matrix.push(cofac_row);
+			}
+		}
+
+		return {
+			cofactor: new mat.constructor(cofac_matrix),
+			coeff: mat.array[pos[0]][pos[1]],
+			sign: ((pos[0]+pos[1])%2 == 0 ? '+' : '-')
+		};
 	},
 
 	// shouldn't be here, but atm, doesn't seem to exist anywhere else 

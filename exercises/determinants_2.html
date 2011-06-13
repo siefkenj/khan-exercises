@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html data-require="math mathformat matrices">
+<head>
+	<title>Determinants 2 (3 &times; 3 Matrices)</title>
+	<script src="../khan-exercise.js"></script>
+</head>
+<body>
+	<div class="exercise">
+	<div class="vars">
+		<var id="A">randRangeMatrix(3,3,-8,8)</var>
+		<var id="A_COFAC1_COLORED">colorizeCofactor(A, [0,0], 'purple')</var>
+		<var id="A_COFAC2_COLORED">colorizeCofactor(A, [0,1], 'red')</var>
+		<var id="A_COFAC3_COLORED">colorizeCofactor(A, [0,2], 'green')</var>
+		<var id="COFAC1_COLORED">getCofactor(A_COFAC1_COLORED, [0,0])</var>
+		<var id="COFAC2_COLORED">getCofactor(A_COFAC2_COLORED, [0,1])</var>
+		<var id="COFAC3_COLORED">getCofactor(A_COFAC3_COLORED, [0,2])</var>
+	</div>
+
+	<div class="problems">
+		<div>
+			<div class="question">
+				<p>If <code>A = <var>formatMatrix(A, '[')</var></code>, find
+				<code>\det(A)</code>.</p>
+			</div>
+			<div class="solution"><var>A.det()</var></div>
+		</div>
+		<div>
+			<div class="question">
+				<p>Find <code><var>formatMatrix(A, '|')</var></code>.</p>
+			</div>
+			<div class="solution"><var>A.det()</var></div>
+		</div>
+	</div>
+	<div class="hints">
+		<p>There are two ways to compute the determinant of a <code>3\times 3</code> matrix.  
+		The first is with cofactors.</a>
+		<p> Identify the sub-matrices corresponding to each cofactor: <br />
+		<code><var>A_COFAC1_COLORED.toCode()</var></code>, <code><var>A_COFAC2_COLORED.toCode()</var></code>, 
+		<code><var>A_COFAC3_COLORED.toCode()</var></code>
+		correspond to the cofactors
+		<code><var>negParens(COFAC1_COLORED['coeff'])</var><var>COFAC1_COLORED['cofactor'].toCode('|')</var></code>, 
+		<code><var>negParens(COFAC2_COLORED['coeff'])</var><var>COFAC2_COLORED['cofactor'].toCode('|')</var></code>, 
+		<code><var>negParens(COFAC3_COLORED['coeff'])</var><var>COFAC3_COLORED['cofactor'].toCode('|')</var></code>. 
+		</p>
+		<p>Add the cofactors together with alternating signs: <br />
+		<code>
+		<var>A.toCode('|')</var>=
+		<var>negParens(COFAC1_COLORED['coeff'])</var><var>COFAC1_COLORED['cofactor'].toCode('|')</var> 
+		-<var>negParens(COFAC2_COLORED['coeff'])</var><var>COFAC2_COLORED['cofactor'].toCode('|')</var> 
+		+<var>negParens(COFAC3_COLORED['coeff'])</var><var>COFAC3_COLORED['cofactor'].toCode('|')</var>
+		</code>
+		</p>
+		<p><code>\hphantom{<var>A.toCode('|')</var>}
+		= <var>negParens(A.get(0,0))</var>\cdot<var>negParens(getCofactor(A, [0,0])['cofactor'].det())</var>
+		- <var>negParens(A.get(0,1))</var>\cdot<var>negParens(getCofactor(A, [0,1])['cofactor'].det())</var>
+		+ <var>negParens(A.get(0,2))</var>\cdot<var>negParens(getCofactor(A, [0,2])['cofactor'].det())</var>
+		</code></p>
+		<p><code>\hphantom{<var>A.toCode('|')</var>}
+		= <var>A.det()</var>
+		</code></p>
+	</div>
+	</div>
+</body>
+</html>

@@ -23,6 +23,7 @@ jQuery.extend(KhanUtil, {
 var mm = new Matrix([[0, 1, 0],[1, 2, 3],  [1, 10, 11]]);
 var mmt = mm.transpose();
 document.write([mm, mmt]);
+document.write('<br/>');
 document.write([mm, mm.transpose(), mm.det(), mm.rref()]);
 document.write('<br/>');
 document.write([mm.add(mm), mm.mul(4)])
@@ -34,7 +35,9 @@ document.write('<br/>');
 document.write([mm2, mm2.mul(mm2)]);
 document.write('<br/>');
 document.write('<br/>');
-var mm3 = new SymbolicMatrix([[1,2],[3,4]]);
+console.log(getCofactors(mm2));
+document.write(colorizeCofactor(mm2, [2,0], 'blue'));
+/*var mm3 = new SymbolicMatrix([[1,2],[3,4]]);
 document.write([mm3, mm3.add(3), mm3.add(mm3)]);
 document.write('<br/>');
 document.write([colorizeMatrix(mm3, 'blue',':',1)]);
@@ -44,7 +47,7 @@ document.write('<br/>');
 document.write('<br/>');
 var mm3 = randRangeMatrix(2, 2, 1, 5);
 document.write([mm3.toCode('|'), mm3.det()]);
-
+*/
 
 
 </script>
