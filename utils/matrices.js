@@ -35,6 +35,7 @@ var prod = function (a) {
 	return ret;
 };
 
+
 /* copy an array two levels deep */
 var deepCopyArray = function (a){
 	//slice returns a copy of the array
@@ -43,57 +44,125 @@ var deepCopyArray = function (a){
 	});
 };
 
-jQuery.extend(KhanUtil, {
-	Matrix: function( m ) {
-		/* numbers smaller than ZERO_TOLERANCE in magnitude are treated as zero */
-		this.ZERO_TOLERANCE = 0.0000001;
-		/* hack so we can return new instance of Matrix from within ourself */
-		var Matrix = this.constructor;
 
-
-		/* dot product of two arrays */
-		var arrayDotProd = function (a,b){
-			if(a.length != b.length){ throw "Size of dot products do not match!"; }
-			return sum(map(zip(a,b), prod));
-		};
-
-		/* element-wise sum of two arrays */
-		var arrayAdd = function(a,b){
-			return map(zip(a,b), sum);
-		};
-
-		/* initialize our data */
-		this.array = deepCopyArray(m);
-		this.dims = [this.array.length, this.array[0].length];
-
-		/* returns the matrix in array notation */
-		this.toString = function(){ 
+/* abstract baseclass for symbolic matrices.
+ * this shouldn't be used directly */
+var AbstractMatrx = function(){};
+jQuery.extend(AbstractMatrx.prototype, {
+		//initialize our array data
+		init : function (m) {
+			//if we have an array attr, we assume we're an array
+			if (!m.array) {
+				this.array = deepCopyArray(m);
+			} else {
+				this.array = deepCopyArray(m.array);
+			}
+			this.dims = [this.array.length, this.array[0].length];
+		},
+		
+		//return a copy-and-pasteable 2d array
+		toString : function () { 
 			var row_texts = [];
 			for(var row = 0; row < this.array.length; row++){
 				row_texts.push("[" + this.array[row].join(", ") + "]");
 			}
 			return "["+row_texts.join(", ")+"]";
-		};
-		/* returns latex code for the matrix */
-		this.toCode = function(){
-			var row_texts = [];
-			for(var row = 0; row < this.array.length; row++){
-				row_texts.push(this.array[row].join(" & "));
+		},
+
+		//outputs the matrix as latex code 
+		//braces can be '[', '(', '|', ''.  
+		//defaults to '['.
+		toCode : function (braces) {
+			return KhanUtil.formatMatrix(this, braces);
+		},
+
+		//sums a vector (1-d array)
+		//pass in _this_ as the first arg.  For some reason
+		//_this_ doesn't make it to this context (at least when we use a map)...
+		_sum : function (self, vec) {
+			var ret = vec[0];
+			for (var i = 1; i < vec.length; i++) {
+				ret = self._math.add(ret, vec[i]);
 			}
-			return "\\begin{bmatrix}"+row_texts.join("\\\\")+"\\end{bmatrix}";
-		};
-		/* return a new matrix with func applied to every element */
-		this.map = function (func) {
+			return ret;
+		},
+		
+		//multiplies all entries in a vector (1-d array)
+		_prod : function (self, vec) {
+			var ret = vec[0];
+			for (var i = 1; i < vec.length; i++) {
+				ret = self._math.mul(ret, vec[i]);
+			}
+			return ret;
+		},
+
+		//compute the dot product of two 1-d arrays
+		_vecDotProduct : function (a, b) {
+			if(a.length != b.length){ throw "Size of dot products do not match!"; }
+			var self = this;
+			var componantwise_product = map(zip(a,b), function (x) { return self._prod(self, x); });
+			return this._sum(self, componantwise_product);
+		},
+		
+		//compute the dot product of two 1-d arrays
+		_vecAdd : function (a, b) {
+			if(a.length != b.length){ throw "Size of dot products do not match!"; }
+			var self = this;
+			return map(zip(a,b), function (x) { return self._sum(self, x); });
+		},
+
+		//return a new matrix with func applied to each element
+		map : function (func) {
 			var new_array = map(this.array, function(x){
 				return map(x, func);
 			});
-			return new Matrix(new_array);
-		};
-		/* returns the i,j element.  If i=':' or j=':',
-		 * it returns the whole row or column
-		 */
-		this.get = function(i,j){
-			if(i == ':' && j == ':'){ return new Matrix(this.array); }
+			return new this.constructor(new_array);
+		},
+		
+		//other can be another matrix or a number
+		//returns the result of addition
+		add : function (other) {
+			var self = this;
+			//if we are another matrix
+			if (other instanceof this.constructor) {
+				if (this.dims[0] != other.dims[0] || this.dims[1] != other.dims[1]) {
+					throw "Cannot add a matrix of size "+this.dims+" and "+other.dims+".";
+				}
+				var new_array =  map( zip(this.array, other.array), 
+					function(a){ return self._vecAdd(a[0], a[1]) } );
+				
+				return new this.constructor(new_array);
+			} else {
+				var add_n = function (x) { return self._math.add(other, x); };
+				return this.map(add_n);
+			}
+		},
+		
+		//other can be another matrix or a number
+		//returns the result of multiplication
+		mul : function (other) {
+			var self = this;
+			//if we are another matrix
+			if (other instanceof this.constructor) {
+				if(this.dims[1] != other.dims[0]){ throw "Cannot multiply matrices of size "+this.dims+" by "+other.dims+"."; }
+				var new_array =  [];
+				var rows = this.array, cols = other.transpose().array;
+				for(var i = 0; i < rows.length; i++){
+					var dot_with_ith_row = function(x){ return self._vecDotProduct(rows[i], x); };
+					//append a new row vector consisting of each column of other dotted with the ith row of this
+					new_array.push(map(cols, dot_with_ith_row));
+				}
+				return new this.constructor(new_array)
+			} else {
+				var mul_n = function (x) { return self._math.mul(other, x); };
+				return this.map(mul_n);
+			}
+		},
+
+		//returns the i,j element.  If i=':' or j=':',
+		//it returns the whole row or column
+		get : function (i,j) {
+			if(i == ':' && j == ':'){ return new this.constructor(this.array); }
 			if(j == ':'){
 				//return a copy of the row
 				return this.array[i].slice();
@@ -102,71 +171,24 @@ jQuery.extend(KhanUtil, {
 				return map(this.array, function(row){ return row[j]; });
 			}
 			return this.array[i][j]
-		}
-		/* return the diagonal entries */
-		this.diag = function(){
+		},
+
+		// return the diagonal entries 
+		diag : function(){
 			var max_entry = Math.min(this.dims[0], this.dims[1]);
 			var ret = [];
 			for(var i = 0; i < max_entry; i++){
 				ret.push(this.array[i][i]);
 			}
 			return ret;
-		};
-		this.is_square = function(){
+		},
+
+		is_square : function(){
 			return (this.dims[0] == this.dims[1]);
-		};
+		},
 
-
-		/* add two matrices */
-		this._add_mat = function(other){
-			var ret = map( zip(this.array, other.array), 
-				       function(a){ return arrayAdd(a[0], a[1]) } );
-			return new Matrix(ret);
-		};
-		
-		/* add a number to the matrix */
-		this._add_num = function(other){
-			var add_other = function(a){ return a + other; };
-			var ret = map(this.array, function(row){ return map(row, add_other); });
-			return new Matrix(ret);
-		};
-
-		/* add a number or matrix to this */
-		this.add = function(other){
-			if(other instanceof Matrix){
-				return this._add_mat(other);
-			}else{
-				return this._add_num(other);
-			}
-		};
-		/* multiply a matrix by a number */
-		this._mul_num = function(other){
-			var mul_other = function(a){ return a*other; };
-			var ret = map(this.array, function(row){ return map(row, mul_other); });
-			return new Matrix(ret);
-		};
-		/* multiply two matrices */
-		this._mul_mat = function(other){
-			if(this.dims[1] != other.dims[0]){ throw "Cannot multiply matrices of size "+this.dims+" by "+other.dims+"."; }
-			var new_array = [];
-			var rows = this.array, cols = other.transpose().array;
-			for(var i = 0; i < rows.length; i++){
-				var dot_with_ith_row = function(x){ return arrayDotProd(rows[i], x); };
-				//append a new row vector consisting of each column of other dotted with the ith row of this
-				new_array.push(map(cols, dot_with_ith_row));
-			}
-			return new Matrix(new_array)
-		};
-		/* multiply a matrix by a matrix or number */
-		this.mul = function(other){
-			if(other instanceof Matrix){
-				return this._mul_mat(other);
-			}else{
-				return this._mul_num(other);
-			}
-		};
-		/* return the transpose of this */
-		this.transpose = function(){
+		//return a transposed version of ourselves
+		transpose : function(){
 			var new_array = [];
 			//loop through the columns of this.array
 			for(var i = 0; i < this.dims[1]; i++){
@@ -174,10 +196,11 @@ jQuery.extend(KhanUtil, {
 				//append the array consisting of the ith column of this.array
 				new_array.push(map(this.array, return_ith_componant));
 			}
-			return new Matrix(new_array);
-		};
+			return new this.constructor(new_array);
+		}
 
-		/* elementary row operations */
+		// elementary row operations 
+		/* TODO
 		this.row_op_multiply_row_by_const = function(val, row){
 			if( row >= this.dims[0] ){ throw "Row "+row+" out of range for matrix of size "+this.dims+"."; }
 			var new_array = deepCopyArray(this.array);
@@ -200,199 +223,171 @@ jQuery.extend(KhanUtil, {
 			ret.array[row2] = tmp;
 			return ret;
 		}
+		*/
+	
+});
 
-		/* row reduction */
-		/* row reduce the matrix to an upper triangular
-		 * matrix suitable for back substitution */
-		this.ref = function(){
-			return this._reduce_to_stage('ref')['matrix'];
-		};
-		/* return the reduced row echelon form */
-		this.rref = function(){
-			return this._reduce_to_stage('rref')['matrix'];
-		};
-		/* row-reduce a matrix to stage ref, pre-rref, or rref */
-		this._reduce_to_stage = function(stage){
-			var self = this;
-			/* componant-wise subtraction of v1-m*v2 of two row vectors */
-			var substractMultipleOfVecs = function(v1, v2, m){
-				var ret = v1.slice(); 	//make a copy of v1
-				var i;
-				for(i in v2){
-					ret[i] -= m*v2[i];
-				}
-				return ret;
-			};
-			/* pass in a 2d array and it returns the first
-			 * non-zero entry in column col in a 
-			 * row >= min_row.  If there are none, it returns
-			 * null.
-			 */
-			var findNonzeroEntry = function(array, col, min_row){
-				for(var i = min_row; i < array.length; i++){
-					if(Math.abs(array[i][col]) > self.ZERO_TOLERANCE){
-						return i;
-					}
-				}
-				return null;
-			};
-			/* uses the pivot in position row,col to zero all entries below */
-			var zeroBelow = function(array, row, col){
-				for(var i = row + 1; i < array.length; i++){
-					array[i] = substractMultipleOfVecs(array[i], array[row], array[i][col]/array[row][col]);
-				}
-			};
-			var zeroAbove = function(array, row, col){
-				for(var i = row - 1; i >= 0; i--){
-					array[i] = substractMultipleOfVecs(array[i], array[row], array[i][col]/array[row][col]);
-				}
-			};
-			var swapRows = function(array, row1, row2){
-				var tmp = array[row1];
-				array[row1] = array[row2];
-				array[row2] = tmp;
-			}
+// set up the matrix class
+KhanUtil.Matrix = function(m){ 
+	//make sure that when we are constructed, our inheritence is also carried over
+	this.constructor = KhanUtil.Matrix; 
+	//initialize
+	this.init(m); 
+};
+KhanUtil.Matrix.prototype = jQuery.extend( new AbstractMatrx(), {
+	//numbers smaller than ZERO_TOLERANCE in magnitude are treated as zero
+	ZERO_TOLERANCE : 0.0000001,
 
-			/* do the actual row reduction */
-			var new_array = deepCopyArray(this.array);
-			var pivot_row = 0, pivot_pos = [], num_row_swaps = 0;
-			for(var pivot_col = 0; pivot_col < new_array[0].length; pivot_col++){
-				var non_zero_row = findNonzeroEntry(new_array, pivot_col, pivot_row);
-				if( non_zero_row != null ){
-					//move a row with non-zero leading entry into the pivot position
-					if( pivot_row != non_zero_row ){
-						swapRows(new_array, pivot_row, non_zero_row);
-						num_row_swaps += 1;
-					}
-					zeroBelow(new_array, pivot_row, pivot_col);
-					pivot_pos.push({'row':pivot_row, 'col':pivot_col});  //if we used this as a pivot, add it to the list
-					pivot_row += 1;
-				}
-			}
-			//if we only want row-echelon form, we've already got it!
-			if( stage == 'ref' ){
-				return {'matrix': new Matrix(new_array), 'row_swaps': num_row_swaps, 'pivot_col': pivot_pos};
-			}
-
-			/* continue reducing until we get to pre-rref */
-			//since we already know exactly where our pivots are, this is really easy
-			map(pivot_pos, function(pos){ zeroAbove(new_array, pos['row'], pos['col']); });
-			if( stage == 'pre-ref'){
-				return {'matrix': new Matrix(new_array), 'row_swaps': num_row_swaps, 'pivot_col': pivot_pos};
-			}
-
-			/* continue to full rref */
-			//once again, we know what our pivot rows are, so this is really easy
-			map(pivot_pos, function(pos){ 
-				var pivot_val = new_array[pos['row']][pos['col']];
-				new_array[pos['row']] = map(new_array[pos['row']], function(x){ return x/pivot_val; });
-			});
-			return {'matrix': new Matrix(new_array), 'row_swaps': num_row_swaps, 'pivot_col': pivot_pos};
-
-		}
-
-		/* returns the determinant of the matrix */
-		this.det = function(){
-			if(!this.is_square()){
-				return 0;
-			}
-			//reduce the matrix to upper triangular while keeping track of row swaps
-			var reduced = this._reduce_to_stage('ref');
-			var diag = reduced['matrix'].diag();
-			var det = Math.pow(-1, reduced['row_swaps'])*prod(diag);
-			
-			//if the matrix was an integer matrix, make sure
-			//we return an integer
-			var is_int = function(x){ return Math.round(x) == x; };
-			//if any number isn't an int, this product will be zero
-			var all_ints = prod(map(this.array, function(x){
-				return prod(map(x, is_int));
-			}));
-			if (all_ints) {
-				return Math.round(det);
-			}
-			return det;
+	//math functions that are used when manipulating entries
+	//these are abstraced so SymbolicMatrix and Matrix can use the same
+	//matrix multiplication and matrix addition functions
+	_math : {
+		add : function (a,b) {
+			return a+b;
+		},
+		mul : function (a,b) {
+			return a*b;
 		}
 	},
 
-	/* matrix object that keeps all entries as strings
-	 * and applies operations symbolically.  e.g.,
-	 * [[1]]+[[2]] = [['1+2']] */
-	SymbolicMatrix : function(m){
-		var SymbolicMatrix = this.constructor, Matrix = KhanUtil.Matrix;
-		var isMatrixType = function(x){
-			return x instanceof Matrix || x instanceof SymbolicMatrix;
+	//return the determinant
+	det : function(){
+		if (!this.is_square()) {
+			return 0;
 		}
-
-		this.array = m;
-		if(isMatrixType(m)){
-			this.array = m.array;
-		}
-		/* overwrite some functional tools with symbolic versions */
-		var sum = function(a){
-			return a.join('+');
-		};
-		var prod = function(a){
-			return a.join('*');
-		};
+		//reduce the matrix to upper triangular while keeping track of row swaps
+		var reduced = this._reduce_to_stage('ref');
+		var diag = reduced['matrix'].diag();
+		var det = Math.pow(-1, reduced['row_swaps'])*prod(diag);
 		
-		/* returns the matrix in array notation */
-		this.toString = function(){ 
-			var row_texts = [];
-			for(var row = 0; row < this.array.length; row++){
-				row_texts.push("[" + this.array[row].join(", ") + "]");
-			}
-			return "["+row_texts.join(", ")+"]";
-		};
-		/* return a new matrix with func applied to every element */
-		this.map = function (func) {
-			var new_array = map(this.array, function(x){
-				return map(x, func);
-			});
-			return new SymbolicMatrix(new_array);
-		};
-		/* returns the i,j element.  If i=':' or j=':',
-		 * it returns the whole row or column
-		 */
-		this.get = function(i,j){
-			if(i == ':' && j == ':'){ return new SymbolicMatrix(this.array); }
-			if(j == ':'){
-				//return a copy of the row
-				return this.array[i].slice();
-			}
-			if(i == ':'){
-				return map(this.array, function(row){ return row[j]; });
-			}
-			return this.array[i][j]
+		//if the matrix was an integer matrix, make sure
+		//we return an integer
+		var is_int = function(x){ return Math.round(x) == x; };
+		//if any number isn't an int, this product will be zero
+		var all_ints = prod(map(this.array, function(x){
+			return prod(map(x, is_int));
+		}));
+		if (all_ints) {
+			return Math.round(det);
 		}
-		/* adds a scalar or another number to this */
-		this.add = function(other){
-			if(isMatrixType(other)){
-				var new_array = map(zip(this.array, other.array), function(x){
-					return map(zip(x[0],x[1]), sum);
-				});
-				return new SymbolicMatrix(new_array)
-			}else{
-				var add_other_to_row = function(row){ 
-					return map(row, function(x){ return x+'+'+other; });
-				};
-				var new_array = map(this.array, add_other_to_row);
-				return new SymbolicMatrix(new_array);
-			}
-		}
-		/* return the transpose of this */
-		this.transpose = function(){
-			var new_array = [];
-			//loop through the columns of this.array
-			for(var i = 0; i < this.dims[1]; i++){
-				var return_ith_componant = function(x){ return x[i]; };
-				//append the array consisting of the ith column of this.array
-				new_array.push(map(this.array, return_ith_componant));
-			}
-			return new Matrix(new_array);
-		};
+		return det;
 	},
 
+	//return the matrix in row-echelon form
+	ref : function(){
+		return this._reduce_to_stage('ref')['matrix'];
+	},
+
+	//return the matrix in reduced row-echelon form
+	rref : function(){
+		return this._reduce_to_stage('rref')['matrix'];
+	},
+
+	// row-reduce a matrix to stage ref, pre-rref, or rref 
+	_reduce_to_stage : function (stage) {
+		var self = this;
+		// componant-wise subtraction of v1-m*v2 of two row vectors
+		var substractMultipleOfVecs = function (v1, v2, m) {
+			var ret = v1.slice(); 	//make a copy of v1
+			var i;
+			for (i in v2) {
+				ret[i] -= m*v2[i];
+			}
+			return ret;
+		};
+		/* pass in a 2d array and it returns the first
+		 * non-zero entry in column col in a 
+		 * row >= min_row.  If there are none, it returns
+		 * null.
+		 */
+		var findNonzeroEntry = function (array, col, min_row) {
+			for (var i = min_row; i < array.length; i++) {
+				if (Math.abs(array[i][col]) > self.ZERO_TOLERANCE) {
+					return i;
+				}
+			}
+			return null;
+		};
+		// uses the pivot in position row,col to zero all entries below 
+		var zeroBelow = function (array, row, col) {
+			for (var i = row + 1; i < array.length; i++) {
+				array[i] = substractMultipleOfVecs(array[i], array[row], array[i][col]/array[row][col]);
+			}
+		};
+		var zeroAbove = function (array, row, col) {
+			for (var i = row - 1; i >= 0; i--) {
+				array[i] = substractMultipleOfVecs(array[i], array[row], array[i][col]/array[row][col]);
+			}
+		};
+		var swapRows = function (array, row1, row2) {
+			var tmp = array[row1];
+			array[row1] = array[row2];
+			array[row2] = tmp;
+		}
+
+		// do the actual row reduction 
+		var new_array = deepCopyArray(this.array);
+		var pivot_row = 0, pivot_pos = [], num_row_swaps = 0;
+		for (var pivot_col = 0; pivot_col < new_array[0].length; pivot_col++) {
+			var non_zero_row = findNonzeroEntry(new_array, pivot_col, pivot_row);
+			if ( non_zero_row != null ) {
+				//move a row with non-zero leading entry into the pivot position
+				if ( pivot_row != non_zero_row ) {
+					swapRows(new_array, pivot_row, non_zero_row);
+					num_row_swaps += 1;
+				}
+				zeroBelow(new_array, pivot_row, pivot_col);
+				pivot_pos.push({'row':pivot_row, 'col':pivot_col});  //if we used this as a pivot, add it to the list
+				pivot_row += 1;
+			}
+		}
+		//if we only want row-echelon form, we've already got it!
+		if ( stage == 'ref' ) {
+			return {'matrix': new KhanUtil.Matrix(new_array), 'row_swaps': num_row_swaps, 'pivot_col': pivot_pos};
+		}
+
+		// continue reducing until we get to pre-rref 
+		//since we already know exactly where our pivots are, this is really easy
+		map(pivot_pos, function(pos){ zeroAbove(new_array, pos['row'], pos['col']); });
+		if ( stage == 'pre-ref') {
+			return {'matrix': new KhanUtil.Matrix(new_array), 'row_swaps': num_row_swaps, 'pivot_col': pivot_pos};
+		}
+
+		// continue to full rref 
+		//once again, we know what our pivot rows are, so this is really easy
+		map(pivot_pos, function (pos) { 
+			var pivot_val = new_array[pos['row']][pos['col']];
+			new_array[pos['row']] = map(new_array[pos['row']], function(x){ return x/pivot_val; });
+		});
+		return {'matrix': new KhanUtil.Matrix(new_array), 'row_swaps': num_row_swaps, 'pivot_col': pivot_pos};
+	}
+});
+
+// set up the SymbolicMatrix class
+// A SymbolicMatrix keeps all entries as strings
+// and applies operations symbolically.  e.g.,
+// [[1]]+[[2]] = [['1+2']] */
+KhanUtil.SymbolicMatrix = function(m){ 
+	//make sure that when we are constructed, our inheritence is also carried over
+	this.constructor = KhanUtil.SymbolicMatrix; 
+	//initialize
+	this.init(m); 
+};
+KhanUtil.SymbolicMatrix.prototype = jQuery.extend( new AbstractMatrx(), {
+	//math functions that are used when manipulating entries
+	//these are abstraced so SymbolicMatrix and Matrix can use the same
+	//matrix multiplication and matrix addition functions
+	_math : {
+		add : function (a,b) {
+			return [a,b].join('+');
+		},
+		mul : function (a,b) {
+			return [a,b].join('*');
+		}
+	}
+});
+
+jQuery.extend(KhanUtil, {
 	/* Returns a SymbolicMatrix version of mat with latex color
 	 * formatting applied.  row,col use slicing notation.
 	 * i.e., row=':' will color that entire row and col=':'
