@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html data-require="math mathformat matrices">
+<html data-require="math mathformat matrices expressions">
 <head>
 	<title>Determinants 2 (3 &times; 3 Matrices)</title>
 	<script src="../khan-exercise.js"></script>
@@ -32,8 +32,12 @@
 		</div>
 	</div>
 	<div class="hints">
-		<p>There are two ways to compute the determinant of a <code>3\times 3</code> matrix.  
-		The first is with cofactors.</a>
+		<p>
+		<!-- 
+			There are two ways to compute the determinant of a <code>3\times 3</code> matrix.  
+		The first is with cofactors. -->
+			Use cofactors to compute the determinant of a <code>3\times 3</code> matrix. 
+		</p>
 		<p> Identify the sub-matrices corresponding to each cofactor: <br />
 		<code><var>A_COFAC1_COLORED.toCode()</var></code>, <code><var>A_COFAC2_COLORED.toCode()</var></code>, 
 		<code><var>A_COFAC3_COLORED.toCode()</var></code>
@@ -51,9 +55,22 @@
 		</code>
 		</p>
 		<p><code>\hphantom{<var>A.toCode('|')</var>}
-		= <var>negParens(A.get(0,0))</var>\cdot<var>negParens(getCofactor(A, [0,0])['cofactor'].det())</var>
-		- <var>negParens(A.get(0,1))</var>\cdot<var>negParens(getCofactor(A, [0,1])['cofactor'].det())</var>
-		+ <var>negParens(A.get(0,2))</var>\cdot<var>negParens(getCofactor(A, [0,2])['cofactor'].det())</var>
+		= <var>expr(['+', 
+				['*', 
+					A.get(0,0), 
+					getCofactor(A, [0,0])['cofactor'].det()
+				],
+				['-', 
+					['*', 
+						A.get(0,1), 
+						getCofactor(A, [0,1])['cofactor'].det()
+					]
+				],
+				['*', 
+					A.get(0,2), 
+					getCofactor(A, [0,2])['cofactor'].det()
+				]
+			])</var>
 		</code></p>
 		<p><code>\hphantom{<var>A.toCode('|')</var>}
 		= <var>A.det()</var>

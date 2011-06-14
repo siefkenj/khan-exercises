@@ -37,12 +37,13 @@ var prod = function (a) {
 
 
 /* a few useful array utilities */
-//copy an array two levels deep
+//copy an arbitrarily nested array
+//this should also copy expr arrays
 var deepCopyArray = function (a){
-	//slice returns a copy of the array
-	return map(a, function(x){ 
-		return x.slice(); 
-	});
+	if (typeof a === 'object' && a.length >= 0 && a.constructor == Array) {
+		return map(a, deepCopyArray);
+	}
+	return a;
 };
 //return a transposed version of a 2d array
 var arrayTranspose = function (array) {
@@ -74,12 +75,21 @@ jQuery.extend(AbstractMatrx.prototype, {
 		
 		//return a copy-and-pasteable 2d array
 		toString : function () { 
+			//if something is an array, return it with braces
+			var giveBrackets = function (x) { return x.constructor == Array ? '('+x.toString()+')' : x; };
 			var row_texts = [];
 			for(var row = 0; row < this.array.length; row++){
-				row_texts.push("[" + this.array[row].join(", ") + "]");
+				var curr_row = map(this.array[row], giveBrackets);
+				row_texts.push("[" + curr_row.join(", ") + "]");
 			}
 			return "["+row_texts.join(", ")+"]";
 		},
+
+		//applied to each enry when toCode/formatMatrix is called
+		format_entry : function (x) {
+			return x;
+		},
+
 
 		//outputs the matrix as latex code 
 		//braces can be '[', '(', '|', ''.  
@@ -202,34 +212,37 @@ jQuery.extend(AbstractMatrx.prototype, {
 		//return a transposed version of ourselves
 		transpose : function(){
 			return new this.constructor(arrayTranspose(this.array));
-		}
+		},
 
 		// elementary row operations 
-		/* TODO
-		this.row_op_multiply_row_by_const = function(val, row){
+		//multiplies row _row_ by _val_
+		multiply_row_by_const : function (row, val) {
 			if( row >= this.dims[0] ){ throw "Row "+row+" out of range for matrix of size "+this.dims+"."; }
+			var self = this;
 			var new_array = deepCopyArray(this.array);
-			new_array[row] = map(new_array[row], function(x){ return x*val; });
-			return new Matrix(new_array);
-		}
-		this.row_op_add_mul_of_one_row_to_another = function(x,n,m){
+			new_array[row] = map(new_array[row], function(x){ return self._math.mul(x,val); });
+			return new this.constructor(new_array);
+		},
+		//adds alpha*row_n to row_m
+		add_mul_of_one_row_to_another : function (alpha, n, m) {
 			if( n >= this.dims[0] || m >= this.dims[0]){ throw "Rows "+[m,n]+" out of range for matrix of size "+this.dims+"."; }
-			var ret = new Matrix(this.array);
-			for(var i = 0; i < ret.array[m].length; i++){
-				ret.array[m][i] += x*ret.array[n][i];
-			}
-			return ret;
-		}
-		this.swap_two_rows = function(row1, row2){
+			var self = this;
+			var new_array = deepCopyArray(this.array);
+			//make a copy of row_n scaled by alpha
+			var scaled_row = map(new_array[n], function(x){ return self._math.mul(alpha, x); });
+			//add it to row_m
+			new_array[m] = map(zip(new_array[m],scaled_row), function(x){ return self._math.add(x[0], x[1]); });
+
+			return new this.constructor(new_array);
+		},
+		swap_two_rows : function (row1, row2) {
 			if( row1 >= this.dims[0] || row2 >= this.dims[0]){ throw "Rows "+[row1,row2]+" out of range for matrix of size "+this.dims+"."; }
-			var ret = new Matrix(this.array);
-			var tmp = ret.array[row1];
-			ret.array[row1] = ret.array[row2];
-			ret.array[row2] = tmp;
+			var ret = new this.constructor(this.array);
+			ret.array[row1] = this.array[row2].slice()
+			ret.array[row2] = this.array[row1].slice()
+
 			return ret;
 		}
-		*/
-	
 });
 
 // set up the matrix class
@@ -253,6 +266,10 @@ KhanUtil.Matrix.prototype = jQuery.extend( new AbstractMatrx(), {
 		mul : function (a,b) {
 			return a*b;
 		}
+	},
+
+	asSymbolic : function(){
+		return new KhanUtil.SymbolicMatrix(this.array);
 	},
 
 	//return the determinant
@@ -384,11 +401,21 @@ KhanUtil.SymbolicMatrix.prototype = jQuery.extend( new AbstractMatrx(), {
 	//matrix multiplication and matrix addition functions
 	_math : {
 		add : function (a,b) {
-			return [a,b].join('+');
+			return ['+', a, b];
+			//return [a,b].join('+');
 		},
 		mul : function (a,b) {
-			return [a,b].join('*');
+			return ['*', a, b];
+			//return [a,b].join('\\cdot ');
 		}
+	},
+
+	//applied to each enry when formatMatrix is called
+	format_entry : function (x) {
+		if (!KhanUtil.expr) {
+			throw "expressions package not loaded."
+		}
+		return KhanUtil.expr(x);
 	}
 });
 
@@ -484,7 +511,7 @@ jQuery.extend(KhanUtil, {
 		if(braces == '|'){ latex_brace = 'vmatrix'; }
 		if(braces == ''){ latex_brace = 'matrix'; }
 
-		var transformed_rows = map(array, function(x){ return x.join(' & '); });
+		var transformed_rows = map(array, function(x){ return map(x, mat.format_entry).join(' & '); });
 		return '\\begin{'+latex_brace+'}'+transformed_rows.join('\\\\')+'\\end{'+latex_brace+'}'
 
 	},
@@ -587,17 +614,9 @@ jQuery.extend(KhanUtil, {
 	},
 
 	// shouldn't be here, but atm, doesn't seem to exist anywhere else 
-	/* returns the contents of expr removing any \color{...}{ } tag */
-	stripColorMarkup : function (expr) {
-		var text = expr;
-		var match = expr.toString().match(/\\color{\w+?}{(.*)}/);
-		if (match) {
-			text = match[1];
-		}
-		return text;
-	},
 
-	/* if you pass in a negative number, it will be returned with parentheses */
+	// if you pass in a negative number, it will be returned with parentheses 
+	// needed because expressions doesn't recognize matrices, so it might put a \cdot when trying to multiply
 	negParens : function (expr) {
 		var num = KhanUtil.stripColorMarkup(expr);
 		if (num.toString().charAt(0) == '-') {
