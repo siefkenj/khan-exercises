@@ -433,7 +433,7 @@ jQuery.extend(KhanUtil, {
 
 		/* wraps whatever value we pass in in a color tag */
 		var apply_color = function(x){
-			return '\\color{'+color+'}{'+x+'}';
+			return ['color', color, x];
 		}
 
 		var new_array = deepCopyArray(mat.array);
@@ -479,7 +479,7 @@ jQuery.extend(KhanUtil, {
 		for(var i = 0; i < color_list.length && i < num_rows*num_cols; i++){
 			var col = i % num_cols;
 			var row = (i - col) / num_cols;
-			new_array[row][col] = '\\color{'+color_list[i]+'}{'+new_array[row][col]+'}';
+			new_array[row][col] = [ 'color', color_list[i], new_array[row][col] ];
 		}
 		
 		return new SymbolicMatrix(new_array);
