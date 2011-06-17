@@ -1,3 +1,12 @@
+//jQuery.map does nasty things to arrays
+var map = function( f, list ){
+	var ret = [];
+	for (var i = 0; i < list.length; i++) {
+		ret.push(f(list[i]));
+	}
+	return ret;
+}
+
 jQuery.extend(KhanUtil, {
 	expr: function( expr, compute ) {
 		if ( typeof expr == "object" ) {
@@ -364,15 +373,6 @@ jQuery.extend(KhanUtil, {
 
 	// returns the contents of expr removing any ['color', ...] tags
 	exprStripColor : function (expr) {
-		//jQuery.map does nasty things to arrays
-		var map = function( f, list ){
-			var ret = [];
-			for (var i = 0; i < list.length; i++) {
-				ret.push(f(list[i]));
-			}
-			return ret;
-		}
-		
 		if ( typeof expr !== "object" ) {
 			return expr;
 		}
@@ -382,6 +382,43 @@ jQuery.extend(KhanUtil, {
 		}
 
 		return map( KhanUtil.exprStripColor, expr )
+	},
+
+	// simplify an expression by collapsing all the associative
+	// operations.  e.g. ["+", ["+", 1, 2], 3] -> ["+", 1, 2, 3]
+	exprSimplifyAssociative : function (expr) {
+		if ( typeof expr !== "object" ){
+			return expr;
+		}
+
+		var simplified = map( KhanUtil.exprSimplifyAssociative, expr.slice(1) );
+		
+		var flattenOneLevel = function (e) {
+			switch( expr[0] ){
+				case "+":
+				if ( e[0] === "+" ) {
+					return e.slice(1);
+				}
+				break;
+
+				case "*":
+				if ( e[0] === "*" ) {
+					return e.slice(1);
+				}
+				break;
+			}
+			//make sure that we encapsulate e in an array so jQuery's map 
+			//does't accidently unpacks e itself.
+			return [e];
+		}
+		
+		//here we actually want the jQuery behavior of
+		//having any lists that flattenOneLevel returns merged into
+		//the result
+		var ret = jQuery.map( simplified, flattenOneLevel );
+		ret.unshift( expr[0] );
+
+		return ret;
 	}
 });
 
