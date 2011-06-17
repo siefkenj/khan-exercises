@@ -118,7 +118,7 @@ jQuery.extend(KhanUtil, {
 					term = "(" + term + ")";
 				}
 
-				if ( term.charAt(0) !== "-" || parenthesize ) {
+				if ( KhanUtil.stripColorMarkup(term).charAt(0) !== "-" || parenthesize ) {
 					term = "+" + term;
 				}
 
@@ -127,7 +127,7 @@ jQuery.extend(KhanUtil, {
 
 			joined = terms.join("");
 
-			if(joined.charAt(0) === "+") {
+			if(KhanUtil.stripColorMarkup(joined).charAt(0) === "+") {
 				return joined.slice(1);
 			} else {
 				return joined;
